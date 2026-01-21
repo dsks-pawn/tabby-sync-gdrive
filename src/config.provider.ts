@@ -1,0 +1,39 @@
+/**
+ * Configuration provider for the Google Drive Sync plugin.
+ * Defines default settings that get merged into Tabby's config.
+ */
+
+import { ConfigProvider } from 'tabby-core';
+
+export class GDriveSyncConfigProvider extends ConfigProvider {
+  defaults = {
+    gdrivesync: {
+      // Whether sync is enabled
+      enabled: false,
+
+      // Auto-sync when config changes
+      autoSyncOnChange: true,
+
+      // Auto-sync on Tabby startup
+      autoSyncOnStartup: true,
+
+      // Minimum interval between syncs (in minutes)
+      syncIntervalMinutes: 5,
+
+      // OAuth tokens - stored encrypted by Tabby vault
+      googleAuthTokens: null,
+
+      // Master password hash (NEVER store plaintext)
+      masterPasswordHash: null,
+      masterPasswordSalt: null,
+
+      // Sync status
+      lastSyncTime: null,
+      lastSyncError: null,
+      lastSyncHost: null,
+
+      // Drive file reference
+      driveFileId: null,
+    },
+  };
+}

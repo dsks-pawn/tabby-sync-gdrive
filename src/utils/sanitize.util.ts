@@ -1,0 +1,303 @@
+/**
+ * Sanitization utilities for removing sensitive data before sync.
+ *
+ * SECURITY CRITICAL:
+ * - SSH private keys must NEVER be synced
+ * - Local file paths should not be synced (they differ per machine)
+ * - Only sync data that makes sense across machines
+ */
+
+import {
+  SyncableSSHProfile,
+  SyncPayload,
+  SyncableSettings,
+} from '../interfaces/sync.interface';
+
+/**
+ * Fields that should NEVER be included in sync payload.
+ * These contain sensitive local data or machine-specific paths.
+ */
+const FORBIDDEN_PROFILE_FIELDS = [
+  'privateKey',
+  'privateKeys',
+  'privateKeyPath',
+  'privateKeyPaths',
+  'keyPath',
+  'keyPaths',
+  'identityFile',
+  'identityFiles',
+  'proxyCommand', // Could contain local paths
+  'scriptBeforeConnect', // Local scripts
+  'scriptAfterConnect',
+] as const;
+
+/**
+ * Deeply removes specified keys from an object
+ */
+function deepRemoveKeys<T extends Record<string, unknown>>(
+  obj: T,
+  keysToRemove: readonly string[],
+): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) =>
+      deepRemoveKeys(item as Record<string, unknown>, keysToRemove),
+    ) as unknown as T;
+  }
+
+  const result = { ...obj } as Record<string, unknown>;
+
+  for (const key of keysToRemove) {
+    if (key in result) {
+      delete result[key];
+    }
+  }
+
+  // Recursively process nested objects
+  for (const key of Object.keys(result)) {
+    const value = result[key];
+    if (value !== null && typeof value === 'object') {
+      result[key] = deepRemoveKeys(
+        value as Record<string, unknown>,
+        keysToRemove,
+      );
+    }
+  }
+
+  return result as T;
+}
+
+/**
+ * Sanitizes a single SSH profile by removing all sensitive/local data.
+ *
+ * @param profile - The profile to sanitize
+ * @returns Sanitized profile safe for sync
+ */
+export function sanitizeProfile(
+  profile: Record<string, unknown>,
+): SyncableSSHProfile | null {
+  // Only sync SSH, serial, and local terminal profiles
+  const profileType = profile['type'] as string | undefined;
+  if (!profileType) {
+    return null;
+  }
+
+  // Skip profiles without ID
+  const profileId = profile['id'] as string | undefined;
+  if (!profileId) {
+    return null;
+  }
+
+  // Create a deep copy and remove forbidden fields
+  const sanitized = deepRemoveKeys(
+    JSON.parse(JSON.stringify(profile)) as Record<string, unknown>,
+    FORBIDDEN_PROFILE_FIELDS,
+  );
+
+  // Build the sanitized profile structure
+  const result: SyncableSSHProfile = {
+    id: profileId,
+    name: (sanitized['name'] as string) || 'Unnamed Profile',
+    type: profileType,
+  };
+
+  // Copy optional fields if present
+  if (sanitized['group']) result.group = sanitized['group'] as string;
+  if (sanitized['icon']) result.icon = sanitized['icon'] as string;
+  if (sanitized['color']) result.color = sanitized['color'] as string;
+  if (sanitized['weight'] !== undefined)
+    result.weight = sanitized['weight'] as number;
+  if (sanitized['disableDynamicTitle'] !== undefined) {
+    result.disableDynamicTitle = sanitized['disableDynamicTitle'] as boolean;
+  }
+  if (sanitized['behaviorOnSessionEnd']) {
+    result.behaviorOnSessionEnd = sanitized['behaviorOnSessionEnd'] as string;
+  }
+
+  // Handle options object (contains connection details)
+  if (sanitized['options'] && typeof sanitized['options'] === 'object') {
+    const opts = sanitized['options'] as Record<string, unknown>;
+    result.options = {};
+
+    // Only copy safe connection options
+    const safeOptionKeys = [
+      'host',
+      'port',
+      'user',
+      'auth',
+      'password',
+      'algorithms',
+      'keepaliveInterval',
+      'keepaliveCountMax',
+      'readyTimeout',
+      'x11',
+      'agentForward',
+      'jumpHost',
+    ];
+
+    for (const key of safeOptionKeys) {
+      if (opts[key] !== undefined) {
+        (result.options as Record<string, unknown>)[key] = opts[key];
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Sanitizes terminal/UI settings for sync.
+ * Removes any paths or machine-specific settings.
+ */
+export function sanitizeSettings(
+  config: Record<string, unknown>,
+): SyncableSettings {
+  const settings: SyncableSettings = {};
+
+  // Terminal settings
+  if (config['terminal'] && typeof config['terminal'] === 'object') {
+    const term = config['terminal'] as Record<string, unknown>;
+    settings.terminal = {
+      frontend: term['frontend'] as string | undefined,
+      fontSize: term['fontSize'] as number | undefined,
+      fontFamily: term['fontFamily'] as string | undefined,
+      fontWeight: term['fontWeight'] as number | undefined,
+      fontWeightBold: term['fontWeightBold'] as number | undefined,
+      ligatures: term['ligatures'] as boolean | undefined,
+      cursor: term['cursor'] as string | undefined,
+      cursorBlink: term['cursorBlink'] as boolean | undefined,
+      bell: term['bell'] as string | undefined,
+      bracketedPaste: term['bracketedPaste'] as boolean | undefined,
+      background: term['background'] as string | undefined,
+      scrollbackLines: term['scrollbackLines'] as number | undefined,
+      rightClick: term['rightClick'] as string | undefined,
+      wordSeparator: term['wordSeparator'] as string | undefined,
+      copyOnSelect: term['copyOnSelect'] as boolean | undefined,
+      pasteOnMiddleClick: term['pasteOnMiddleClick'] as boolean | undefined,
+      shellIntegration: term['shellIntegration'] as boolean | undefined,
+    };
+
+    // Color scheme
+    if (term['colorScheme'] && typeof term['colorScheme'] === 'object') {
+      (settings.terminal as Record<string, unknown>)['colorScheme'] =
+        term['colorScheme'];
+    }
+
+    // Remove undefined values
+    settings.terminal = removeUndefined(settings.terminal);
+  }
+
+  // Appearance settings
+  if (config['appearance'] && typeof config['appearance'] === 'object') {
+    const app = config['appearance'] as Record<string, unknown>;
+    settings.appearance = {
+      theme: app['theme'] as string | undefined,
+      frame: app['frame'] as string | undefined,
+      opacity: app['opacity'] as number | undefined,
+      vibrancy: app['vibrancy'] as boolean | undefined,
+      tabsOnTop: app['tabsOnTop'] as boolean | undefined,
+      dockScreen: app['dockScreen'] as string | undefined,
+      dockPosition: app['dockPosition'] as string | undefined,
+    };
+    settings.appearance = removeUndefined(settings.appearance);
+  }
+
+  // Hotkeys (safe to sync as they're just key combinations)
+  if (config['hotkeys'] && typeof config['hotkeys'] === 'object') {
+    settings.hotkeys = config['hotkeys'] as Record<string, string[]>;
+  }
+
+  return settings;
+}
+
+/**
+ * Creates a complete sanitized sync payload from Tabby config.
+ */
+export function createSyncPayload(
+  config: Record<string, unknown>,
+  hostname: string,
+): SyncPayload {
+  const profiles: SyncableSSHProfile[] = [];
+
+  // Process profiles array
+  if (Array.isArray(config['profiles'])) {
+    for (const profile of config['profiles']) {
+      if (typeof profile === 'object' && profile !== null) {
+        const sanitized = sanitizeProfile(profile as Record<string, unknown>);
+        if (sanitized) {
+          profiles.push(sanitized);
+        }
+      }
+    }
+  }
+
+  // Process groups
+  const groups =
+    (config['groups'] as Array<{
+      id: string;
+      name: string;
+      collapsed?: boolean;
+    }>) || [];
+
+  // Process vault (passwords)
+  let vault: SyncPayload['vault'];
+  if (config['vault'] && typeof config['vault'] === 'object') {
+    const vaultData = config['vault'] as Record<string, unknown>;
+    if (Array.isArray(vaultData['secrets'])) {
+      const filteredSecrets = vaultData['secrets'].filter(
+        (
+          s,
+        ): s is { type: string; key: Record<string, unknown>; value: string } =>
+          typeof s === 'object' &&
+          s !== null &&
+          'type' in s &&
+          'key' in s &&
+          'value' in s,
+      );
+      if (filteredSecrets.length > 0) {
+        vault = {
+          secrets: filteredSecrets.map((s) => ({
+            type: s.type,
+            key: s.key as {
+              type: string;
+              id?: string;
+              host?: string;
+              user?: string;
+            },
+            value: s.value,
+          })),
+        };
+      }
+    }
+  }
+
+  return {
+    version: 1,
+    lastUpdated: Date.now(),
+    sourceHost: hostname,
+    profiles,
+    groups: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      collapsed: g.collapsed,
+    })),
+    vault,
+    settings: sanitizeSettings(config),
+  };
+}
+
+/**
+ * Removes undefined values from an object
+ */
+function removeUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const result = { ...obj };
+  for (const key of Object.keys(result)) {
+    if (result[key] === undefined) {
+      delete result[key];
+    }
+  }
+  return result;
+}

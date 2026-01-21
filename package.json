@@ -1,0 +1,59 @@
+{
+  "name": "tabby-sync-gdrive",
+  "version": "1.0.0",
+  "description": "Sync Tabby configuration across machines using Google Drive with AES-256 encryption",
+  "keywords": [
+    "tabby-plugin"
+  ],
+  "main": "index.js",
+  "homepage": "https://github.com/user/tabby-sync-gdrive",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/tabby-sync-gdrive.git"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "scripts": {
+    "build": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rimraf dist",
+    "install-plugin": "node scripts/install.js"
+  },
+  "peerDependencies": {
+    "@angular/common": "^16.0.0",
+    "@angular/core": "^16.0.0",
+    "@angular/forms": "^16.0.0",
+    "@ngx-translate/core": "^15.0.0",
+    "rxjs": "^7.0.0",
+    "tabby-core": "*",
+    "tabby-settings": "*"
+  },
+  "devDependencies": {
+    "@angular/common": "16",
+    "@angular/core": "16",
+    "@angular/forms": "16",
+    "@ngx-translate/core": "15",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "copy-webpack-plugin": "^11.0.0",
+    "dotenv-webpack": "^8.1.1",
+    "eslint": "^8.50.0",
+    "rimraf": "^5.0.0",
+    "rxjs": "7",
+    "ts-loader": "^9.5.0",
+    "typescript": "~5.2.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.0",
+    "zone.js": "0.14"
+  },
+  "dependencies": {
+    "googleapis": "^128.0.0",
+    "js-yaml": "^4.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
