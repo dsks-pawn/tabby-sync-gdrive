@@ -129,8 +129,17 @@ export class SyncService {
 
     const pluginConfig = this.getPluginConfig();
 
+    // Configure Google OAuth credentials if available
+    if (pluginConfig.googleClientId && pluginConfig.googleClientSecret) {
+      this.drive.configure(
+        pluginConfig.googleClientId,
+        pluginConfig.googleClientSecret,
+      );
+      this.log.debug('Google credentials configured from saved config');
+    }
+
     // If we have stored tokens, try to reconnect
-    if (pluginConfig.googleAuthTokens) {
+    if (pluginConfig.googleAuthTokens && this.drive.isConfigured()) {
       try {
         const success = await this.drive.initialize(
           pluginConfig.googleAuthTokens,
@@ -242,6 +251,45 @@ export class SyncService {
     } else {
       return this.setMasterPassword(DEFAULT_PASS);
     }
+  }
+
+  /**
+   * Saves Google OAuth credentials to config.
+   */
+  async saveGoogleCredentials(
+    clientId: string,
+    clientSecret: string,
+  ): Promise<void> {
+    await this.savePluginConfig({
+      googleClientId: clientId,
+      googleClientSecret: clientSecret,
+    });
+
+    // Configure DriveService with new credentials
+    this.drive.configure(clientId, clientSecret);
+    this.log.info('Google credentials saved and configured');
+  }
+
+  /**
+   * Checks if Google credentials are configured.
+   */
+  hasGoogleCredentials(): boolean {
+    const config = this.getPluginConfig();
+    return !!(config.googleClientId && config.googleClientSecret);
+  }
+
+  /**
+   * Gets current Google credentials.
+   */
+  getGoogleCredentials(): { clientId: string; clientSecret: string } | null {
+    const config = this.getPluginConfig();
+    if (config.googleClientId && config.googleClientSecret) {
+      return {
+        clientId: config.googleClientId,
+        clientSecret: config.googleClientSecret,
+      };
+    }
+    return null;
   }
 
   /**

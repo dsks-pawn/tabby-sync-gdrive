@@ -1,0 +1,9 @@
+# Ignore everything
+*
+
+# Whitelist files to publish
+!dist/**
+!scripts/**
+!package.json
+!README.md
+!LICENSE

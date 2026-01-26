@@ -26,13 +26,6 @@ const REDIRECT_PORT = 45678; // Local port for OAuth callback
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/oauth2callback`;
 
 /**
- * OAuth credentials - these should be replaced with your own from Google Cloud Console.
- * For security, consider loading these from environment or a config file.
- */
-const CLIENT_ID = process.env['GOOGLE_CLIENT_ID'] || '';
-const CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'] || '';
-
-/**
  * Connection status for UI
  */
 export interface DriveConnectionStatus {
@@ -44,9 +37,13 @@ export interface DriveConnectionStatus {
 @Injectable()
 export class DriveService {
   private readonly log: Logger;
-  private oauth2Client: OAuth2Client;
+  private oauth2Client: OAuth2Client | null = null;
   private drive: drive_v3.Drive | null = null;
   private activeServer: http.Server | null = null;
+
+  // Stored credentials
+  private clientId: string = '';
+  private clientSecret: string = '';
 
   /** Observable for connection status updates */
   private connectionStatus = new BehaviorSubject<DriveConnectionStatus>({
@@ -64,11 +61,19 @@ export class DriveService {
     logService: LogService,
   ) {
     this.log = logService.create('GDriveSync:Drive');
+  }
 
-    // Initialize OAuth2 client
+  /**
+   * Configure OAuth credentials. Must be called before authorize().
+   */
+  configure(clientId: string, clientSecret: string): void {
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+
+    // Reinitialize OAuth2 client with new credentials
     this.oauth2Client = new google.auth.OAuth2(
-      CLIENT_ID,
-      CLIENT_SECRET,
+      clientId,
+      clientSecret,
       REDIRECT_URI,
     );
 
@@ -77,6 +82,27 @@ export class DriveService {
       this.log.info('OAuth tokens refreshed');
       // Tokens will be saved by SyncService
     });
+
+    this.log.debug('OAuth credentials configured');
+  }
+
+  /**
+   * Check if credentials are configured
+   */
+  isConfigured(): boolean {
+    return !!(this.clientId && this.clientSecret);
+  }
+
+  /**
+   * Get OAuth2 client, throws if not configured
+   */
+  private getOAuth2Client(): OAuth2Client {
+    if (!this.oauth2Client) {
+      throw new Error(
+        'OAuth credentials not configured. Please set up Google API credentials first.',
+      );
+    }
+    return this.oauth2Client;
   }
 
   /**
@@ -87,12 +113,13 @@ export class DriveService {
    */
   async initialize(tokens: Credentials): Promise<boolean> {
     try {
-      this.oauth2Client.setCredentials(tokens);
+      const client = this.getOAuth2Client();
+      client.setCredentials(tokens);
 
       // Verify tokens are valid by making a simple request
-      await this.oauth2Client.getAccessToken();
+      await client.getAccessToken();
 
-      this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
+      this.drive = google.drive({ version: 'v3', auth: client });
 
       // Get user email for display
       const about = await this.drive.about.get({ fields: 'user' });
@@ -121,6 +148,7 @@ export class DriveService {
    * @returns Current credentials or null
    */
   getTokens(): Credentials | null {
+    if (!this.oauth2Client) return null;
     return this.oauth2Client.credentials;
   }
 
@@ -132,8 +160,10 @@ export class DriveService {
    */
   async authorize(): Promise<Credentials> {
     return new Promise((resolve, reject) => {
+      const client = this.getOAuth2Client();
+
       // Generate auth URL
-      const authUrl = this.oauth2Client.generateAuthUrl({
+      const authUrl = client.generateAuthUrl({
         access_type: 'offline', // Get refresh token
         scope: SCOPES,
         prompt: 'consent', // Force consent screen to get refresh_token
@@ -193,11 +223,11 @@ export class DriveService {
           }
 
           // Exchange code for tokens
-          const { tokens } = await this.oauth2Client.getToken(code);
-          this.oauth2Client.setCredentials(tokens);
+          const { tokens } = await client.getToken(code);
+          client.setCredentials(tokens);
 
           // Initialize Drive client
-          this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
+          this.drive = google.drive({ version: 'v3', auth: client });
 
           // Get user email
           const about = await this.drive.about.get({ fields: 'user' });
@@ -272,14 +302,16 @@ export class DriveService {
    */
   async disconnect(): Promise<void> {
     try {
-      if (this.oauth2Client.credentials.access_token) {
+      if (this.oauth2Client?.credentials?.access_token) {
         await this.oauth2Client.revokeCredentials();
       }
     } catch (error) {
       this.log.warn('Error revoking credentials:', error);
     }
 
-    this.oauth2Client.setCredentials({});
+    if (this.oauth2Client) {
+      this.oauth2Client.setCredentials({});
+    }
     this.drive = null;
     this.syncFileId = null;
 

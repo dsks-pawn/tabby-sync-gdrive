@@ -22,8 +22,56 @@ import { DriveConnectionStatus } from '../services/drive.service';
         Google Drive Sync
       </h3>
 
+      <!-- Google API Credentials Setup -->
+      <div class="credentials-section" *ngIf="!hasCredentials">
+        <h4>
+          <i class="fas fa-key"></i>
+          Step 1: Google API Credentials
+        </h4>
+        <p class="help-text">
+          Create your own Google Cloud project and get OAuth credentials.
+          <a href="https://console.cloud.google.com/" target="_blank"
+            >Open Google Cloud Console</a
+          >
+        </p>
+        <div class="input-group">
+          <label>Client ID</label>
+          <input
+            type="text"
+            [(ngModel)]="clientId"
+            placeholder="xxxxx.apps.googleusercontent.com"
+            class="form-control"
+          />
+        </div>
+        <div class="input-group">
+          <label>Client Secret</label>
+          <input
+            type="password"
+            [(ngModel)]="clientSecret"
+            placeholder="GOCSPX-xxxxxx"
+            class="form-control"
+          />
+        </div>
+        <button
+          class="btn btn-success"
+          (click)="saveCredentials()"
+          [disabled]="!clientId || !clientSecret"
+        >
+          <i class="fas fa-save"></i>
+          Save Credentials
+        </button>
+        <p class="help-text" style="margin-top: 15px;">
+          📖 <strong>Quick Setup Guide:</strong><br />
+          1. Go to Google Cloud Console → Create Project<br />
+          2. Enable "Google Drive API"<br />
+          3. Create OAuth Consent Screen (External, add scope: drive.appdata)<br />
+          4. Create OAuth Client ID (Desktop App)<br />
+          5. Copy Client ID & Secret here
+        </p>
+      </div>
+
       <!-- Connection Status -->
-      <div class="status-section">
+      <div class="status-section" *ngIf="hasCredentials">
         <div
           class="status-indicator"
           [class.connected]="driveStatus?.connected"
@@ -56,7 +104,7 @@ import { DriveConnectionStatus } from '../services/drive.service';
       </div>
 
       <!-- Google Drive Connection -->
-      <div class="button-row">
+      <div class="button-row" *ngIf="hasCredentials">
         <button
           *ngIf="!driveStatus?.connected"
           class="btn btn-primary"
@@ -67,7 +115,6 @@ import { DriveConnectionStatus } from '../services/drive.service';
           {{ isConnecting ? 'Connecting...' : 'Connect Google Drive' }}
         </button>
         <div *ngIf="driveStatus?.connected" class="connected-actions">
-          <!-- Hidden Sync Now button available via alt-click if debug needed, but purely optional -->
           <button class="btn btn-warning" (click)="disconnectGoogleDrive()">
             <i class="fas fa-unlink"></i>
             Disconnect
@@ -75,9 +122,20 @@ import { DriveConnectionStatus } from '../services/drive.service';
         </div>
       </div>
 
-      <!-- Hidden Password Logic (Using Default) -->
+      <!-- Status message when connected -->
       <div *ngIf="driveStatus?.connected" class="status-msg">
-        <i class="fas fa-shield-alt"></i> Protected with default security.
+        <i class="fas fa-shield-alt"></i> Data encrypted with AES-256. Auto-sync
+        active.
+      </div>
+
+      <!-- Reset credentials option -->
+      <div
+        *ngIf="hasCredentials && !driveStatus?.connected"
+        class="reset-section"
+      >
+        <button class="btn btn-link" (click)="resetCredentials()">
+          <i class="fas fa-redo"></i> Reset API Credentials
+        </button>
       </div>
     </div>
   `,
@@ -258,6 +316,50 @@ import { DriveConnectionStatus } from '../services/drive.service';
         gap: 8px;
         font-size: 0.9rem;
       }
+
+      .credentials-section {
+        background: var(--bs-body-bg);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+
+      .credentials-section a {
+        color: var(--theme-primary);
+      }
+
+      .input-group {
+        margin-bottom: 15px;
+      }
+
+      .input-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 0.9rem;
+        opacity: 0.9;
+      }
+
+      .input-group .form-control {
+        width: 100%;
+      }
+
+      .reset-section {
+        margin-top: 15px;
+        opacity: 0.7;
+      }
+
+      .btn-link {
+        background: transparent;
+        border: none;
+        color: var(--bs-secondary);
+        padding: 5px 0;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      .btn-link:hover {
+        color: var(--theme-primary);
+      }
     `,
   ],
 })
@@ -267,11 +369,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
   syncState: SyncState | null = null;
   isConnecting = false;
 
+  // Credentials
+  hasCredentials = false;
+  clientId = '';
+  clientSecret = '';
+
   private subscriptions: Subscription[] = [];
 
   constructor(private sync: SyncService) {}
 
   ngOnInit(): void {
+    // Check if credentials are configured
+    this.hasCredentials = this.sync.hasGoogleCredentials();
+
+    // Load existing credentials for display (masked)
+    const creds = this.sync.getGoogleCredentials();
+    if (creds) {
+      this.clientId = creds.clientId;
+      this.clientSecret = creds.clientSecret;
+    }
+
     // Subscribe to drive status
     this.subscriptions.push(
       this.sync.getDriveStatus().subscribe((status) => {
@@ -293,6 +410,19 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
+  }
+
+  async saveCredentials(): Promise<void> {
+    if (!this.clientId || !this.clientSecret) return;
+
+    await this.sync.saveGoogleCredentials(this.clientId, this.clientSecret);
+    this.hasCredentials = true;
+  }
+
+  resetCredentials(): void {
+    this.hasCredentials = false;
+    this.clientId = '';
+    this.clientSecret = '';
   }
 
   async connectGoogleDrive(): Promise<void> {
