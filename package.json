@@ -1,11 +1,11 @@
 {
   "name": "tabby-sync-gdrive",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sync Tabby configuration across machines using Google Drive with AES-256 encryption",
   "keywords": [
     "tabby-plugin"
   ],
-  "main": "index.js",
+  "main": "dist/index.js",
   "homepage": "https://github.com/user/tabby-sync-gdrive",
   "repository": {
     "type": "git",
