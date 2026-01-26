@@ -96,6 +96,14 @@ export interface SyncableSettings {
     copyOnSelect?: boolean;
     pasteOnMiddleClick?: boolean;
     shellIntegration?: boolean;
+    // Additional terminal settings
+    autoOpen?: boolean;
+    warnOnMultiLinePaste?: boolean;
+    altIsMeta?: boolean;
+    scrollOnInput?: boolean;
+    focusOnCreation?: boolean;
+    hideCloseButton?: boolean;
+    hideTabOptions?: boolean;
   };
 
   appearance?: {
@@ -106,9 +114,53 @@ export interface SyncableSettings {
     tabsOnTop?: boolean;
     dockScreen?: string;
     dockPosition?: string;
+    // Additional appearance settings
+    css?: string;
+    font?: string;
+    fontSize?: number;
+    lastTabClosesWindow?: boolean;
   };
 
   hotkeys?: Record<string, string[]>;
+
+  // SSH settings
+  ssh?: {
+    warnOnClose?: boolean;
+    winSCPPath?: string;
+    agentType?: string;
+    agentPath?: string;
+    x11Display?: string;
+  };
+
+  // Custom color schemes
+  colorSchemes?: Array<{
+    name: string;
+    foreground: string;
+    background: string;
+    cursor?: string;
+    cursorText?: string;
+    colors: string[];
+  }>;
+
+  // Plugin settings
+  pluginBlacklist?: string[];
+
+  // Application settings
+  application?: {
+    restoreTerminalOnStartup?: boolean;
+    enableAnalytics?: boolean;
+    enableAutoupdate?: boolean;
+    language?: string;
+  };
+
+  // Window settings
+  window?: {
+    startInTray?: boolean;
+    startMinimized?: boolean;
+    closeToTray?: boolean;
+    confirmClose?: boolean;
+    restoreWindowProtocol?: boolean;
+  };
 }
 
 /**

@@ -165,16 +165,18 @@ export function mergeGroups(
 }
 
 /**
- * Merges settings with local taking precedence.
- * Remote settings fill in any missing values.
+ * Merges settings with remote taking precedence.
+ * This ensures new machines receive the synced settings from cloud.
+ * Local settings are used as fallback for any missing remote values.
  */
 export function mergeSettings(
   localSettings: SyncableSettings,
   remoteSettings: SyncableSettings,
 ): SyncableSettings {
+  // Remote takes precedence - local fills in gaps
   return deepMerge(
-    remoteSettings as unknown as Record<string, unknown>,
     localSettings as unknown as Record<string, unknown>,
+    remoteSettings as unknown as Record<string, unknown>,
   ) as unknown as SyncableSettings;
 }
 
@@ -424,6 +426,43 @@ export function applyPayloadToConfig(
 
   if (mergedPayload.settings.hotkeys) {
     config['hotkeys'] = mergedPayload.settings.hotkeys;
+  }
+
+  // Apply SSH settings
+  if (mergedPayload.settings.ssh) {
+    config['ssh'] = deepMerge(
+      (config['ssh'] || {}) as Record<string, unknown>,
+      mergedPayload.settings.ssh as unknown as Record<string, unknown>,
+    );
+  }
+
+  // Apply custom color schemes
+  if (
+    mergedPayload.settings.colorSchemes &&
+    mergedPayload.settings.colorSchemes.length > 0
+  ) {
+    config['colorSchemes'] = mergedPayload.settings.colorSchemes;
+  }
+
+  // Apply plugin blacklist
+  if (mergedPayload.settings.pluginBlacklist) {
+    config['pluginBlacklist'] = mergedPayload.settings.pluginBlacklist;
+  }
+
+  // Apply application settings
+  if (mergedPayload.settings.application) {
+    config['application'] = deepMerge(
+      (config['application'] || {}) as Record<string, unknown>,
+      mergedPayload.settings.application as unknown as Record<string, unknown>,
+    );
+  }
+
+  // Apply window settings
+  if (mergedPayload.settings.window) {
+    config['window'] = deepMerge(
+      (config['window'] || {}) as Record<string, unknown>,
+      mergedPayload.settings.window as unknown as Record<string, unknown>,
+    );
   }
 
   return config;

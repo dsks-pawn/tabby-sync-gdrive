@@ -178,6 +178,14 @@ export function sanitizeSettings(
       copyOnSelect: term['copyOnSelect'] as boolean | undefined,
       pasteOnMiddleClick: term['pasteOnMiddleClick'] as boolean | undefined,
       shellIntegration: term['shellIntegration'] as boolean | undefined,
+      // Additional terminal settings
+      autoOpen: term['autoOpen'] as boolean | undefined,
+      warnOnMultiLinePaste: term['warnOnMultiLinePaste'] as boolean | undefined,
+      altIsMeta: term['altIsMeta'] as boolean | undefined,
+      scrollOnInput: term['scrollOnInput'] as boolean | undefined,
+      focusOnCreation: term['focusOnCreation'] as boolean | undefined,
+      hideCloseButton: term['hideCloseButton'] as boolean | undefined,
+      hideTabOptions: term['hideTabOptions'] as boolean | undefined,
     };
 
     // Color scheme
@@ -201,6 +209,11 @@ export function sanitizeSettings(
       tabsOnTop: app['tabsOnTop'] as boolean | undefined,
       dockScreen: app['dockScreen'] as string | undefined,
       dockPosition: app['dockPosition'] as string | undefined,
+      // Additional appearance settings
+      css: app['css'] as string | undefined,
+      font: app['font'] as string | undefined,
+      fontSize: app['fontSize'] as number | undefined,
+      lastTabClosesWindow: app['lastTabClosesWindow'] as boolean | undefined,
     };
     settings.appearance = removeUndefined(settings.appearance);
   }
@@ -208,6 +221,59 @@ export function sanitizeSettings(
   // Hotkeys (safe to sync as they're just key combinations)
   if (config['hotkeys'] && typeof config['hotkeys'] === 'object') {
     settings.hotkeys = config['hotkeys'] as Record<string, string[]>;
+  }
+
+  // SSH settings (exclude local paths)
+  if (config['ssh'] && typeof config['ssh'] === 'object') {
+    const ssh = config['ssh'] as Record<string, unknown>;
+    settings.ssh = {
+      warnOnClose: ssh['warnOnClose'] as boolean | undefined,
+      agentType: ssh['agentType'] as string | undefined,
+      x11Display: ssh['x11Display'] as string | undefined,
+      // Note: winSCPPath and agentPath are excluded as they're machine-specific
+    };
+    settings.ssh = removeUndefined(settings.ssh);
+  }
+
+  // Custom color schemes
+  if (Array.isArray(config['colorSchemes'])) {
+    settings.colorSchemes = config[
+      'colorSchemes'
+    ] as SyncableSettings['colorSchemes'];
+  }
+
+  // Plugin blacklist
+  if (Array.isArray(config['pluginBlacklist'])) {
+    settings.pluginBlacklist = config['pluginBlacklist'] as string[];
+  }
+
+  // Application settings
+  if (config['application'] && typeof config['application'] === 'object') {
+    const app = config['application'] as Record<string, unknown>;
+    settings.application = {
+      restoreTerminalOnStartup: app['restoreTerminalOnStartup'] as
+        | boolean
+        | undefined,
+      enableAnalytics: app['enableAnalytics'] as boolean | undefined,
+      enableAutoupdate: app['enableAutoupdate'] as boolean | undefined,
+      language: app['language'] as string | undefined,
+    };
+    settings.application = removeUndefined(settings.application);
+  }
+
+  // Window settings
+  if (config['window'] && typeof config['window'] === 'object') {
+    const win = config['window'] as Record<string, unknown>;
+    settings.window = {
+      startInTray: win['startInTray'] as boolean | undefined,
+      startMinimized: win['startMinimized'] as boolean | undefined,
+      closeToTray: win['closeToTray'] as boolean | undefined,
+      confirmClose: win['confirmClose'] as boolean | undefined,
+      restoreWindowProtocol: win['restoreWindowProtocol'] as
+        | boolean
+        | undefined,
+    };
+    settings.window = removeUndefined(settings.window);
   }
 
   return settings;

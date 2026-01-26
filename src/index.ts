@@ -18,7 +18,7 @@
  * - Master password is never stored in plaintext
  * - Uses Google Drive AppData folder (hidden from user)
  *
- * @author Your Name
+ * @author Thanh Nguyen
  * @version 1.0.0
  */
 
