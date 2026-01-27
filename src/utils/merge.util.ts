@@ -327,6 +327,47 @@ export function mergePayloads(
     remote.vault?.secrets,
   );
 
+  // Merge vault encryption metadata
+  // Use remote metadata if local doesn't have it (for new machines)
+  // Once set, local metadata takes precedence to avoid sync conflicts
+  const mergedVault: SyncPayload['vault'] =
+    mergedSecrets && mergedSecrets.length > 0
+      ? { secrets: mergedSecrets }
+      : undefined;
+
+  if (mergedVault || local.vault || remote.vault) {
+    const vault = mergedVault || {};
+    // Copy encryption metadata - remote takes precedence if local is missing
+    vault.iv = local.vault?.iv || remote.vault?.iv;
+    vault.salt = local.vault?.salt || remote.vault?.salt;
+    vault.ciphertext = local.vault?.ciphertext || remote.vault?.ciphertext;
+    vault.format = local.vault?.format || remote.vault?.format;
+
+    // Only include vault if it has meaningful data
+    if (
+      vault.iv ||
+      vault.salt ||
+      vault.ciphertext ||
+      (vault.secrets && vault.secrets.length > 0)
+    ) {
+      return {
+        mergedPayload: {
+          version: Math.max(local.version, remote.version),
+          lastUpdated: Date.now(),
+          sourceHost: local.sourceHost,
+          profiles: mergedProfiles,
+          groups: mergedGroups,
+          vault,
+          settings: mergedSettings,
+        },
+        conflicts,
+        addedProfiles,
+        updatedProfiles,
+        addedGroups,
+      };
+    }
+  }
+
   return {
     mergedPayload: {
       version: Math.max(local.version, remote.version),
@@ -334,10 +375,7 @@ export function mergePayloads(
       sourceHost: local.sourceHost,
       profiles: mergedProfiles,
       groups: mergedGroups,
-      vault:
-        mergedSecrets && mergedSecrets.length > 0
-          ? { secrets: mergedSecrets }
-          : undefined,
+      vault: undefined,
       settings: mergedSettings,
     },
     conflicts,
@@ -400,13 +438,31 @@ export function applyPayloadToConfig(
     config['groups'] = mergedPayload.groups;
   }
 
-  // Apply vault secrets
-  if (mergedPayload.vault?.secrets) {
+  // Apply vault (encryption metadata + secrets)
+  if (mergedPayload.vault) {
     if (!config['vault']) {
       config['vault'] = {};
     }
-    (config['vault'] as Record<string, unknown>)['secrets'] =
-      mergedPayload.vault.secrets;
+    const vaultConfig = config['vault'] as Record<string, unknown>;
+
+    // Apply encryption metadata (required to decrypt secrets)
+    if (mergedPayload.vault.iv) {
+      vaultConfig['iv'] = mergedPayload.vault.iv;
+    }
+    if (mergedPayload.vault.salt) {
+      vaultConfig['salt'] = mergedPayload.vault.salt;
+    }
+    if (mergedPayload.vault.ciphertext) {
+      vaultConfig['ciphertext'] = mergedPayload.vault.ciphertext;
+    }
+    if (mergedPayload.vault.format !== undefined) {
+      vaultConfig['format'] = mergedPayload.vault.format;
+    }
+
+    // Apply secrets
+    if (mergedPayload.vault.secrets) {
+      vaultConfig['secrets'] = mergedPayload.vault.secrets;
+    }
   }
 
   // Apply settings (merge with existing)

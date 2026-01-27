@@ -176,6 +176,12 @@ export interface SyncPayload {
   profiles: SyncableSSHProfile[];
   groups: SyncableProfileGroup[];
   vault?: {
+    // Vault encryption metadata - required to decrypt secrets on another machine
+    iv?: string; // Initialization Vector (hex)
+    salt?: string; // Key Salt (hex)
+    ciphertext?: string; // Encrypted master key (base64)
+    format?: number; // Vault format version
+    // Saved passwords (encrypted by vault's master key)
     secrets?: SyncableVaultSecret[];
   };
   settings: SyncableSettings;
