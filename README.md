@@ -6,19 +6,18 @@ Synchronize your Tabby SSH profiles, saved passwords, terminal settings, and per
 
 ## ✨ Features
 
-- **Secure Sync**: AES-256-GCM encryption
-- **Full Personalization Sync**: Theme, fonts, hotkeys, color schemes, and more
-- **Smart Merge**: Conflict resolution based on timestamps
-- **Privacy First**: SSH private keys are NEVER synced
-- **Auto-sync**: Detects config changes and syncs automatically
-- **AppData Storage**: Uses Google Drive's hidden app folder
-- **Offline Safe**: Works gracefully when offline
-- **Cross-Platform**: Windows, macOS, Linux support
-- **User-Owned Credentials**: Each user uses their own Google Cloud project
+- **🔒 Secure Sync**: AES-256-GCM encryption for all synced data
+- **🎨 Full Personalization Sync**: Theme, fonts, hotkeys, color schemes, and more
+- **🔀 Smart Merge**: Conflict resolution based on timestamps
+- **🛡️ Privacy First**: SSH private keys are NEVER synced
+- **⚡ Auto-sync**: Detects config changes and syncs automatically
+- **📁 AppData Storage**: Uses Google Drive's hidden app folder (invisible to users)
+- **🌐 Cross-Platform**: Windows, macOS, Linux support
+- **🚀 Zero Configuration**: Just install and connect - no API setup required!
 
 ## 🔒 What Gets Synced
 
-| ✅ Synced                            | ❌ NOT Synced                     |
+| ✅ Synced                            | ❌ NOT Synced (for security)      |
 | ------------------------------------ | --------------------------------- |
 | SSH profiles (host, port, username)  | SSH private keys                  |
 | Profile groups and labels            | Key file paths                    |
@@ -33,15 +32,23 @@ Synchronize your Tabby SSH profiles, saved passwords, terminal settings, and per
 
 ## 📦 Installation
 
-### Option 1: Install from npm (Recommended)
+### Option 1: Install from Tabby Plugin Store (Recommended)
+
+1. Open **Tabby**
+2. Go to **Settings** → **Plugins**
+3. Search for `tabby-sync-gdrive`
+4. Click **Install**
+5. Restart Tabby
+
+### Option 2: Install via npm
 
 ```bash
-# In Tabby, go to Settings → Plugins → Search for "tabby-sync-gdrive"
-# Or install via npm:
 npm install -g tabby-sync-gdrive
 ```
 
-### Option 2: Build from Source
+Then restart Tabby.
+
+### Option 3: Build from Source
 
 ```bash
 # 1. Clone the repository
@@ -53,76 +60,56 @@ yarn install
 
 # 3. Build and install to Tabby (auto-detects OS)
 yarn install-plugin
+
+# 4. Restart Tabby
 ```
 
-Restart Tabby after installation.
+## 🚀 Quick Start (2 Steps!)
 
-## 🚀 First-Time Setup
+### Step 1: Connect to Google Drive
 
-### Step 1: Create Google Cloud Project
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (e.g., "Tabby Sync")
-3. Select the project
-
-### Step 2: Enable Google Drive API
-
-1. Go to **APIs & Services** → **Library**
-2. Search for "Google Drive API"
-3. Click **Enable**
-
-### Step 3: Configure OAuth Consent Screen
-
-1. Go to **APIs & Services** → **OAuth consent screen**
-2. Select **External**
-3. Fill in:
-   - App name: "Tabby Sync"
-   - User support email: your email
-   - Developer contact: your email
-4. Click **Save and Continue**
-5. Add scope: `https://www.googleapis.com/auth/drive.appdata`
-6. Add yourself as a test user
-
-### Step 4: Create OAuth Credentials
-
-1. Go to **APIs & Services** → **Credentials**
-2. Click **Create Credentials** → **OAuth client ID**
-3. Application type: **Desktop app**
-4. Name: "Tabby Sync Desktop"
-5. Click **Create**
-6. Copy **Client ID** and **Client Secret**
-
-### Step 5: Configure in Tabby
-
-1. Open Tabby
+1. Open **Tabby**
 2. Go to **Settings** → **Google Drive Sync**
-3. Enter your **Client ID** and **Client Secret**
-4. Click **Save Credentials**
-5. Click **Connect Google Drive**
-6. Authorize in browser
-7. Done! Sync starts automatically.
+3. Click **"Connect Google Drive"**
+4. A browser window will open - sign in with your Google account
+5. Allow the app to access its own AppData folder
+6. Done! ✨
+
+### Step 2: That's it!
+
+Your settings will now sync automatically across all your machines.
 
 ## 📱 On a New Machine
 
-1. Install the plugin (npm or build from source)
-2. Open Tabby Settings → Google Drive Sync
-3. Enter the **same** Client ID and Client Secret
-4. Click Connect Google Drive
-5. All your settings sync automatically!
+1. Install the plugin (any method above)
+2. Open Tabby → Settings → Google Drive Sync
+3. Click **Connect Google Drive**
+4. Sign in with the **same Google account**
+5. All your settings sync automatically! 🎉
 
-## ⚠️ Security Notes
+## ⚠️ Security & Privacy
 
 ### Data Encryption
 
-- All sync data is encrypted with AES-256-GCM
-- Encryption uses PBKDF2 (100,000 iterations) for key derivation
+- All sync data is encrypted with **AES-256-GCM**
+- Encryption uses **PBKDF2** (100,000 iterations) for key derivation
 - Each encryption uses unique IV and salt
+- Master password: `123456` (default, can be changed in future versions)
 
-### Privacy
+### Privacy Guarantees
 
-- **Your credentials stay with you**: Each user creates their own Google Cloud project
-- SSH private keys are NEVER synced
-- Data is stored in Google Drive's hidden AppData folder
+- ✅ **SSH private keys are NEVER synced** - they stay on your local machine
+- ✅ Data stored in Google Drive's **hidden AppData folder** - not visible in your Drive
+- ✅ Only this app can access its own data folder
+- ✅ No telemetry or analytics
+
+### Google OAuth Scope
+
+This plugin only requests `drive.appdata` scope - the most restrictive scope that:
+
+- ✅ Can only access the app's own hidden folder
+- ❌ Cannot read your personal files
+- ❌ Cannot access your documents, photos, etc.
 
 ## 🔄 Sync Behavior
 
@@ -132,28 +119,36 @@ Restart Tabby after installation.
 | Profile updated on both | Newer timestamp wins                       |
 | Settings differ         | Remote takes precedence (for new machines) |
 | New machine syncs       | Receives all settings from cloud           |
+| Offline                 | Works offline, syncs when back online      |
 
 ## 🐛 Troubleshooting
 
-### "OAuth credentials not configured"
+### "Authorization failed" or connection issues
 
-- You need to enter Client ID and Client Secret first
-- Get them from Google Cloud Console
-
-### "Authorization failed"
-
-- Check that your Client ID/Secret are correct
-- Make sure you added yourself as test user in OAuth consent screen
+1. Make sure you're using a valid Google account
+2. Try disconnecting and reconnecting
+3. Check your internet connection
 
 ### "Failed to decrypt"
 
 - Sync data may be corrupted
-- Solution: Delete the sync file from Google Drive AppData and re-sync
+- Solution: Delete the sync file from Google Drive AppData:
+  1. Go to [Google Drive](https://drive.google.com)
+  2. Settings → Manage Apps → Find "Tabby Sync"
+  3. Click "Delete hidden app data"
+  4. Reconnect in Tabby
 
 ### Plugin not appearing in Settings
 
-1. Check that plugin is in correct directory
-2. Restart Tabby completely
+1. Make sure the plugin is installed correctly
+2. Restart Tabby completely (including system tray)
+3. Check Tabby logs for errors (Ctrl+Shift+I → Console)
+
+### Settings not syncing
+
+1. Check if you're connected (green checkmark in Settings)
+2. Try manual disconnect → reconnect
+3. Make sure you're using the same Google account on all machines
 
 ## 📁 Project Structure
 
@@ -204,6 +199,11 @@ Contributions welcome! Please:
 3. Make your changes
 4. Run `yarn lint` and fix issues
 5. Submit a pull request
+
+## 💬 Support
+
+- **Issues**: [GitHub Issues](https://github.com/user/tabby-sync-gdrive/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/user/tabby-sync-gdrive/discussions)
 
 ---
 
