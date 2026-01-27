@@ -129,14 +129,7 @@ export class SyncService {
 
     const pluginConfig = this.getPluginConfig();
 
-    // Configure Google OAuth credentials if available
-    if (pluginConfig.googleClientId && pluginConfig.googleClientSecret) {
-      this.drive.configure(
-        pluginConfig.googleClientId,
-        pluginConfig.googleClientSecret,
-      );
-      this.log.debug('Google credentials configured from saved config');
-    }
+    // DriveService is now auto-configured with hardcoded credentials
 
     // If we have stored tokens, try to reconnect
     if (pluginConfig.googleAuthTokens && this.drive.isConfigured()) {
@@ -254,42 +247,11 @@ export class SyncService {
   }
 
   /**
-   * Saves Google OAuth credentials to config.
-   */
-  async saveGoogleCredentials(
-    clientId: string,
-    clientSecret: string,
-  ): Promise<void> {
-    await this.savePluginConfig({
-      googleClientId: clientId,
-      googleClientSecret: clientSecret,
-    });
-
-    // Configure DriveService with new credentials
-    this.drive.configure(clientId, clientSecret);
-    this.log.info('Google credentials saved and configured');
-  }
-
-  /**
    * Checks if Google credentials are configured.
+   * Always returns true since credentials are hardcoded.
    */
   hasGoogleCredentials(): boolean {
-    const config = this.getPluginConfig();
-    return !!(config.googleClientId && config.googleClientSecret);
-  }
-
-  /**
-   * Gets current Google credentials.
-   */
-  getGoogleCredentials(): { clientId: string; clientSecret: string } | null {
-    const config = this.getPluginConfig();
-    if (config.googleClientId && config.googleClientSecret) {
-      return {
-        clientId: config.googleClientId,
-        clientSecret: config.googleClientSecret,
-      };
-    }
-    return null;
+    return true; // Credentials are now hardcoded in DriveService
   }
 
   /**

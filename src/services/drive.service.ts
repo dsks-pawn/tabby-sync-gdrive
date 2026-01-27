@@ -25,6 +25,11 @@ const SYNC_FILE_NAME = 'tabby-sync.json';
 const REDIRECT_PORT = 45678; // Local port for OAuth callback
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/oauth2callback`;
 
+/** Hardcoded OAuth credentials */
+const GOOGLE_CLIENT_ID =
+  '1034070286602-m5arl71ke9ctad6905psbsaencjheeeu.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET = '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';
+
 /**
  * Connection status for UI
  */
@@ -61,6 +66,9 @@ export class DriveService {
     logService: LogService,
   ) {
     this.log = logService.create('GDriveSync:Drive');
+
+    // Auto-configure with hardcoded credentials
+    this.configure(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
   }
 
   /**

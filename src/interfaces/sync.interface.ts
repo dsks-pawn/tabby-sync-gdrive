@@ -190,10 +190,6 @@ export interface GDriveSyncConfig {
   autoSyncOnStartup: boolean;
   syncIntervalMinutes: number;
 
-  // Google OAuth credentials (user-provided)
-  googleClientId?: string;
-  googleClientSecret?: string;
-
   // Auth state (tokens are stored encrypted)
   googleAuthTokens?: {
     access_token?: string;
