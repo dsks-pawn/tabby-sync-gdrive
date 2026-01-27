@@ -28,7 +28,7 @@ const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/oauth2callback`;
 /** Hardcoded OAuth credentials */
 const GOOGLE_CLIENT_ID =
   '1034070286602-m5arl71ke9ctad6905psbsaencjheeeu.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = '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';
+const GOOGLE_CLIENT_SECRET = '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';
 
 /**
  * Connection status for UI
