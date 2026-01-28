@@ -16,6 +16,7 @@
   "scripts": {
     "build": "webpack --mode production",
     "watch": "webpack --mode development --watch",
+    "deploy": "npm version patch && git push origin main --tags",
     "lint": "eslint src/**/*.ts",
     "clean": "rimraf dist",
     "install-plugin": "node scripts/install.js"
