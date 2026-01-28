@@ -5,7 +5,7 @@
 
 // tabby-core types
 declare module 'tabby-core' {
-  import { Observable, Subject } from 'rxjs';
+  import { Observable } from 'rxjs';
 
   export abstract class ConfigProvider {
     defaults: any;
