@@ -6,10 +6,10 @@
     "tabby-plugin"
   ],
   "main": "dist/index.js",
-  "homepage": "https://github.com/user/tabby-sync-gdrive",
+  "homepage": "https://github.com/dsks-pawn/tabby-sync-ggdrive-plugin",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/tabby-sync-gdrive.git"
+    "url": "https://github.com/dsks-pawn/tabby-sync-ggdrive-plugin.git"
   },
   "author": "Thanh Nguyen",
   "license": "MIT",
