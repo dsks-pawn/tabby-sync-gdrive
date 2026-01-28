@@ -48,11 +48,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
 
-    # Environment for Trusted Publisher (optional but recommended)
-    # Create this environment in GitHub repo Settings > Environments
-    environment: npm-publish
-
-    # Required for npm provenance with OIDC
+    # Required for npm provenance with OIDC Trusted Publisher
     permissions:
       contents: read
       id-token: write
