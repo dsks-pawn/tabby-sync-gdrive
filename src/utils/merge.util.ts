@@ -302,23 +302,25 @@ export function mergePayloads(
   );
 
   // Merge vault - vault is synced as a whole since contents is an encrypted blob
-  // Remote vault takes precedence if local doesn't have one (for new machines)
+  // IMPORTANT: Remote vault ALWAYS wins because it contains the latest passwords
+  // When user syncs from Drive, they want to get the latest vault from remote
+  // Vault cannot be merged partially - it's an all-or-nothing encrypted blob
   let mergedVault: SyncPayload['vault'];
-  if (local.vault && local.vault.contents) {
-    // Local has vault - keep local (vault is machine-specific once set)
-    mergedVault = {
-      iv: local.vault.iv,
-      keySalt: local.vault.keySalt,
-      contents: local.vault.contents,
-      version: local.vault.version,
-    };
-  } else if (remote.vault && remote.vault.contents) {
-    // Local doesn't have vault but remote does - use remote
+  if (remote.vault && remote.vault.contents) {
+    // Remote has vault - use remote (contains latest passwords)
     mergedVault = {
       iv: remote.vault.iv,
       keySalt: remote.vault.keySalt,
       contents: remote.vault.contents,
       version: remote.vault.version,
+    };
+  } else if (local.vault && local.vault.contents) {
+    // Remote doesn't have vault but local does - keep local
+    mergedVault = {
+      iv: local.vault.iv,
+      keySalt: local.vault.keySalt,
+      contents: local.vault.contents,
+      version: local.vault.version,
     };
   }
 
