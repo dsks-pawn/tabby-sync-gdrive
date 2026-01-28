@@ -308,7 +308,7 @@ export function createSyncPayload(
       collapsed?: boolean;
     }>) || [];
 
-  // Process vault (passwords and encryption metadata)
+  // Process vault (entire vault blob - passwords are encrypted inside 'contents')
   let vault: SyncPayload['vault'];
   if (config['vault'] && typeof config['vault'] === 'object') {
     const vaultData = config['vault'] as Record<string, unknown>;
@@ -316,53 +316,22 @@ export function createSyncPayload(
     // Initialize vault object
     vault = {};
 
-    // Copy vault encryption metadata (required to decrypt secrets on another machine)
+    // Copy vault encryption data (required to decrypt passwords on another machine)
     if (typeof vaultData['iv'] === 'string') {
       vault.iv = vaultData['iv'];
     }
-    if (typeof vaultData['salt'] === 'string') {
-      vault.salt = vaultData['salt'];
+    if (typeof vaultData['keySalt'] === 'string') {
+      vault.keySalt = vaultData['keySalt'];
     }
-    if (typeof vaultData['ciphertext'] === 'string') {
-      vault.ciphertext = vaultData['ciphertext'];
+    if (typeof vaultData['contents'] === 'string') {
+      vault.contents = vaultData['contents'];
     }
-    if (typeof vaultData['format'] === 'number') {
-      vault.format = vaultData['format'];
-    }
-
-    // Copy secrets (saved passwords)
-    if (Array.isArray(vaultData['secrets'])) {
-      const filteredSecrets = vaultData['secrets'].filter(
-        (
-          s,
-        ): s is { type: string; key: Record<string, unknown>; value: string } =>
-          typeof s === 'object' &&
-          s !== null &&
-          'type' in s &&
-          'key' in s &&
-          'value' in s,
-      );
-      if (filteredSecrets.length > 0) {
-        vault.secrets = filteredSecrets.map((s) => ({
-          type: s.type,
-          key: s.key as {
-            type: string;
-            id?: string;
-            host?: string;
-            user?: string;
-          },
-          value: s.value,
-        }));
-      }
+    if (typeof vaultData['version'] === 'number') {
+      vault.version = vaultData['version'];
     }
 
-    // Only include vault if it has meaningful data
-    if (
-      !vault.iv &&
-      !vault.salt &&
-      !vault.ciphertext &&
-      (!vault.secrets || vault.secrets.length === 0)
-    ) {
+    // Only include vault if it has meaningful data (contents is the encrypted blob)
+    if (!vault.contents) {
       vault = undefined;
     }
   }

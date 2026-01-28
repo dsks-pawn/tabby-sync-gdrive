@@ -129,6 +129,13 @@ export function mergeProfile(
     for (const field of safeOptionFields) {
       const remoteValue = remoteOptions[field as keyof typeof remoteOptions];
       if (remoteValue !== undefined) {
+        // Special handling for password: always accept remote if local is empty/undefined
+        if (field === 'password') {
+          if (!localOptions[field]) {
+            localOptions[field] = remoteValue;
+          }
+          continue;
+        }
         if (localWins && localOptions[field] !== undefined) {
           continue;
         }
@@ -180,35 +187,8 @@ export function mergeSettings(
   ) as unknown as SyncableSettings;
 }
 
-/**
- * Type for vault secrets array
- */
-type VaultSecrets = NonNullable<SyncPayload['vault']>['secrets'];
-
-/**
- * Merges vault secrets (saved passwords).
- * Remote secrets are added if not present locally.
- */
-export function mergeVaultSecrets(
-  localSecrets: VaultSecrets | undefined,
-  remoteSecrets: VaultSecrets | undefined,
-): VaultSecrets {
-  if (!remoteSecrets) return localSecrets || [];
-  if (!localSecrets) return remoteSecrets;
-
-  const merged = [...localSecrets];
-  const localKeys = new Set(localSecrets.map((s) => JSON.stringify(s.key)));
-
-  for (const remoteSecret of remoteSecrets) {
-    const keyStr = JSON.stringify(remoteSecret.key);
-    if (!localKeys.has(keyStr)) {
-      merged.push({ ...remoteSecret });
-    }
-    // Existing secrets keep local values (don't overwrite passwords)
-  }
-
-  return merged;
-}
+// Note: Vault merging is simplified since Tabby stores vault as encrypted blob (contents)
+// We sync the entire vault from remote if local doesn't have one
 
 /**
  * Main merge function that combines local and remote sync payloads.
@@ -321,51 +301,25 @@ export function mergePayloads(
     remote.settings || {},
   );
 
-  // Merge vault secrets
-  const mergedSecrets = mergeVaultSecrets(
-    local.vault?.secrets,
-    remote.vault?.secrets,
-  );
-
-  // Merge vault encryption metadata
-  // Use remote metadata if local doesn't have it (for new machines)
-  // Once set, local metadata takes precedence to avoid sync conflicts
-  const mergedVault: SyncPayload['vault'] =
-    mergedSecrets && mergedSecrets.length > 0
-      ? { secrets: mergedSecrets }
-      : undefined;
-
-  if (mergedVault || local.vault || remote.vault) {
-    const vault = mergedVault || {};
-    // Copy encryption metadata - remote takes precedence if local is missing
-    vault.iv = local.vault?.iv || remote.vault?.iv;
-    vault.salt = local.vault?.salt || remote.vault?.salt;
-    vault.ciphertext = local.vault?.ciphertext || remote.vault?.ciphertext;
-    vault.format = local.vault?.format || remote.vault?.format;
-
-    // Only include vault if it has meaningful data
-    if (
-      vault.iv ||
-      vault.salt ||
-      vault.ciphertext ||
-      (vault.secrets && vault.secrets.length > 0)
-    ) {
-      return {
-        mergedPayload: {
-          version: Math.max(local.version, remote.version),
-          lastUpdated: Date.now(),
-          sourceHost: local.sourceHost,
-          profiles: mergedProfiles,
-          groups: mergedGroups,
-          vault,
-          settings: mergedSettings,
-        },
-        conflicts,
-        addedProfiles,
-        updatedProfiles,
-        addedGroups,
-      };
-    }
+  // Merge vault - vault is synced as a whole since contents is an encrypted blob
+  // Remote vault takes precedence if local doesn't have one (for new machines)
+  let mergedVault: SyncPayload['vault'];
+  if (local.vault && local.vault.contents) {
+    // Local has vault - keep local (vault is machine-specific once set)
+    mergedVault = {
+      iv: local.vault.iv,
+      keySalt: local.vault.keySalt,
+      contents: local.vault.contents,
+      version: local.vault.version,
+    };
+  } else if (remote.vault && remote.vault.contents) {
+    // Local doesn't have vault but remote does - use remote
+    mergedVault = {
+      iv: remote.vault.iv,
+      keySalt: remote.vault.keySalt,
+      contents: remote.vault.contents,
+      version: remote.vault.version,
+    };
   }
 
   return {
@@ -375,7 +329,7 @@ export function mergePayloads(
       sourceHost: local.sourceHost,
       profiles: mergedProfiles,
       groups: mergedGroups,
-      vault: undefined,
+      vault: mergedVault,
       settings: mergedSettings,
     },
     conflicts,
@@ -438,31 +392,16 @@ export function applyPayloadToConfig(
     config['groups'] = mergedPayload.groups;
   }
 
-  // Apply vault (encryption metadata + secrets)
-  if (mergedPayload.vault) {
-    if (!config['vault']) {
-      config['vault'] = {};
-    }
-    const vaultConfig = config['vault'] as Record<string, unknown>;
-
-    // Apply encryption metadata (required to decrypt secrets)
-    if (mergedPayload.vault.iv) {
-      vaultConfig['iv'] = mergedPayload.vault.iv;
-    }
-    if (mergedPayload.vault.salt) {
-      vaultConfig['salt'] = mergedPayload.vault.salt;
-    }
-    if (mergedPayload.vault.ciphertext) {
-      vaultConfig['ciphertext'] = mergedPayload.vault.ciphertext;
-    }
-    if (mergedPayload.vault.format !== undefined) {
-      vaultConfig['format'] = mergedPayload.vault.format;
-    }
-
-    // Apply secrets
-    if (mergedPayload.vault.secrets) {
-      vaultConfig['secrets'] = mergedPayload.vault.secrets;
-    }
+  // Apply vault (replace entire vault from remote if present)
+  // Vault is an encrypted blob and must be applied as a whole
+  if (mergedPayload.vault && mergedPayload.vault.contents) {
+    // Replace entire vault structure
+    config['vault'] = {
+      version: mergedPayload.vault.version,
+      contents: mergedPayload.vault.contents,
+      keySalt: mergedPayload.vault.keySalt,
+      iv: mergedPayload.vault.iv,
+    };
   }
 
   // Apply settings (merge with existing)

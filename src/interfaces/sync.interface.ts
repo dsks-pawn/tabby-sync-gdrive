@@ -178,11 +178,9 @@ export interface SyncPayload {
   vault?: {
     // Vault encryption metadata - required to decrypt secrets on another machine
     iv?: string; // Initialization Vector (hex)
-    salt?: string; // Key Salt (hex)
-    ciphertext?: string; // Encrypted master key (base64)
-    format?: number; // Vault format version
-    // Saved passwords (encrypted by vault's master key)
-    secrets?: SyncableVaultSecret[];
+    keySalt?: string; // Key Salt (hex) - used to derive encryption key from passphrase
+    contents?: string; // Encrypted vault contents (base64) - contains all secrets
+    version?: number; // Vault format version
   };
   settings: SyncableSettings;
 }
