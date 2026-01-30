@@ -16,6 +16,7 @@ import {
   SyncableSettings,
   MergeConflict,
 } from '../interfaces/sync.interface';
+import { PathMapper } from './path-mapper.util';
 
 /**
  * Result of a merge operation
@@ -124,6 +125,7 @@ export function mergeProfile(
       'x11',
       'agentForward',
       'jumpHost',
+      'cwd',
     ];
 
     for (const field of safeOptionFields) {
@@ -139,7 +141,12 @@ export function mergeProfile(
         if (localWins && localOptions[field] !== undefined) {
           continue;
         }
-        localOptions[field] = remoteValue;
+
+        let valueToSet = remoteValue;
+        if (field === 'cwd') {
+          valueToSet = PathMapper.toLocalPath(valueToSet) as string;
+        }
+        localOptions[field] = valueToSet;
       }
     }
 
@@ -284,7 +291,18 @@ export function mergePayloads(
   // Then, add remote-only profiles
   for (const remoteProfile of remote.profiles) {
     if (!localProfileMap.has(remoteProfile.id)) {
-      mergedProfiles.push(remoteProfile);
+      // Restore paths for remote-only profiles
+      const profileToAdd = JSON.parse(JSON.stringify(remoteProfile));
+      if (
+        profileToAdd.options &&
+        typeof profileToAdd.options === 'object' &&
+        profileToAdd.options.cwd
+      ) {
+        profileToAdd.options.cwd = PathMapper.toLocalPath(
+          profileToAdd.options.cwd,
+        );
+      }
+      mergedProfiles.push(profileToAdd);
       addedProfiles.push(remoteProfile.id);
     }
   }
@@ -408,9 +426,20 @@ export function applyPayloadToConfig(
 
   // Apply settings (merge with existing)
   if (mergedPayload.settings.terminal) {
+    // Restore paths
+    const termSettings = { ...mergedPayload.settings.terminal } as Record<
+      string,
+      unknown
+    >;
+    if (termSettings['background']) {
+      termSettings['background'] = PathMapper.toLocalPath(
+        termSettings['background'],
+      );
+    }
+
     config['terminal'] = deepMerge(
       (config['terminal'] || {}) as Record<string, unknown>,
-      mergedPayload.settings.terminal as unknown as Record<string, unknown>,
+      termSettings,
     );
   }
 

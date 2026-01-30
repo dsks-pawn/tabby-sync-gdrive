@@ -9,9 +9,10 @@
  */
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subscription, Observable } from 'rxjs';
 import { SyncService, SyncState } from '../services/sync.service';
 import { DriveConnectionStatus } from '../services/drive.service';
+import { SyncVersion } from '../interfaces/sync.interface';
 
 @Component({
   selector: 'gdrive-sync-settings',
@@ -21,6 +22,23 @@ import { DriveConnectionStatus } from '../services/drive.service';
         <i class="fas fa-cloud"></i>
         Google Drive Sync
       </h3>
+
+      <!-- Missing Plugins Warning -->
+      <div
+        class="alert alert-warning"
+        *ngIf="(missingPlugins$ | async)?.length"
+      >
+        <div class="d-flex align-items-center gap-2">
+          <i class="fas fa-exclamation-triangle text-warning"></i>
+          <strong>Missing Plugins Detected:</strong>
+        </div>
+        <div class="mt-2 pl-4">
+          {{ (missingPlugins$ | async)?.join(', ') }}
+        </div>
+        <div class="mt-1 pl-4 opacity-75 small">
+          Please install them manually to match your other machine.
+        </div>
+      </div>
 
       <!-- Connection Status -->
       <div class="status-section">
@@ -78,6 +96,54 @@ import { DriveConnectionStatus } from '../services/drive.service';
       <div *ngIf="driveStatus?.connected" class="status-msg">
         <i class="fas fa-shield-alt"></i> Data encrypted with AES-256. Auto-sync
         active.
+      </div>
+
+      <!-- Version History (Time Machine) -->
+      <div class="version-section" *ngIf="driveStatus?.connected">
+        <h4 (click)="toggleVersions()" class="section-header">
+          <i
+            class="fas"
+            [class.fa-chevron-right]="!showVersions"
+            [class.fa-chevron-down]="showVersions"
+          ></i>
+          <i class="fas fa-history"></i> Time Machine (Version History)
+        </h4>
+
+        <div *ngIf="showVersions" class="version-list-container">
+          <button
+            class="btn btn-secondary btn-sm mb-2"
+            (click)="loadVersions()"
+            [disabled]="loadingVersions"
+          >
+            <i class="fas fa-sync" [class.fa-spin]="loadingVersions"></i>
+            Refresh Versions
+          </button>
+
+          <div
+            *ngIf="versions.length === 0 && !loadingVersions"
+            class="text-muted help-text"
+          >
+            No versions found.
+          </div>
+
+          <div class="version-list">
+            <div *ngFor="let version of versions" class="version-item">
+              <div class="version-info">
+                <span class="version-name">{{ version.name }}</span>
+                <span class="version-meta" *ngIf="version.size"
+                  >{{ (+version.size! / 1024).toFixed(1) }} KB</span
+                >
+              </div>
+              <button
+                class="btn btn-sm btn-warning"
+                (click)="restoreVersion(version.id)"
+                [disabled]="loadingVersions"
+              >
+                <i class="fas fa-undo"></i> Restore
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `,
@@ -302,6 +368,88 @@ import { DriveConnectionStatus } from '../services/drive.service';
       .btn-link:hover {
         color: var(--theme-primary);
       }
+
+      .alert {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+      }
+      .alert-warning {
+        background: rgba(255, 193, 7, 0.1);
+        border-color: rgba(255, 193, 7, 0.2);
+        color: var(--body-color);
+      }
+      .text-warning {
+        color: var(--bs-warning);
+      }
+      .gap-2 {
+        gap: 0.5rem;
+      }
+      .d-flex {
+        display: flex;
+      }
+      .align-items-center {
+        align-items: center;
+      }
+      .pl-4 {
+        padding-left: 1.5rem;
+      }
+      .mt-2 {
+        margin-top: 0.5rem;
+      }
+      .mt-1 {
+        margin-top: 0.25rem;
+      }
+      .opacity-75 {
+        opacity: 0.75;
+      }
+      .small {
+        font-size: 0.85rem;
+      }
+
+      .version-section {
+        margin-top: 20px;
+        background: var(--bs-body-bg);
+        border-radius: 8px;
+        padding: 15px;
+      }
+
+      .section-header {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        padding: 5px 0;
+      }
+
+      .version-list-container {
+        margin-top: 15px;
+      }
+
+      .version-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        border-bottom: 1px solid var(--bs-border-color);
+      }
+
+      .version-info {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .version-name {
+        font-weight: bold;
+        font-size: 0.9rem;
+      }
+
+      .version-meta {
+        font-size: 0.8rem;
+        opacity: 0.7;
+      }
     `,
   ],
 })
@@ -311,9 +459,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
   syncState: SyncState | null = null;
   isConnecting = false;
 
+  // Version History
+  versions: SyncVersion[] = [];
+  loadingVersions = false;
+  showVersions = false;
+
   private subscriptions: Subscription[] = [];
 
   constructor(private sync: SyncService) {}
+
+  get missingPlugins$(): Observable<string[]> {
+    return this.sync.missingPlugins$;
+  }
 
   ngOnInit(): void {
     // Subscribe to drive status
@@ -363,5 +520,46 @@ export class SettingsComponent implements OnInit, OnDestroy {
   formatTime(date: Date): string {
     if (!date) return '';
     return date.toLocaleString();
+  }
+
+  toggleVersions(): void {
+    this.showVersions = !this.showVersions;
+    if (this.showVersions && this.versions.length === 0) {
+      this.loadVersions();
+    }
+  }
+
+  async loadVersions(): Promise<void> {
+    this.loadingVersions = true;
+    try {
+      this.versions = await this.sync.listRemoteVersions();
+    } finally {
+      this.loadingVersions = false;
+    }
+  }
+
+  async restoreVersion(id: string): Promise<void> {
+    if (
+      !confirm(
+        'Are you sure you want to restore this version? Current settings will be overwritten.',
+      )
+    ) {
+      return;
+    }
+
+    this.loadingVersions = true;
+    try {
+      const success = await this.sync.restoreRemoteVersion(id);
+      if (success) {
+        alert(
+          'Restored successfully! Please restart Tabby to apply all changes.',
+        );
+        // Refresh versions to update list? Not needed.
+      } else {
+        alert('Failed to restore version. Check logs.');
+      }
+    } finally {
+      this.loadingVersions = false;
+    }
   }
 }

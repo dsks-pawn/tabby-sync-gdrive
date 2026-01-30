@@ -12,6 +12,7 @@ import {
   SyncPayload,
   SyncableSettings,
 } from '../interfaces/sync.interface';
+import { PathMapper } from './path-mapper.util';
 
 /**
  * Fields that should NEVER be included in sync payload.
@@ -136,11 +137,16 @@ export function sanitizeProfile(
       'x11',
       'agentForward',
       'jumpHost',
+      'cwd',
     ];
 
     for (const key of safeOptionKeys) {
       if (opts[key] !== undefined) {
-        (result.options as Record<string, unknown>)[key] = opts[key];
+        let value = opts[key];
+        if (key === 'cwd') {
+          value = PathMapper.toPortablePath(value);
+        }
+        (result.options as Record<string, unknown>)[key] = value;
       }
     }
   }
@@ -171,13 +177,18 @@ export function sanitizeSettings(
       cursorBlink: term['cursorBlink'] as boolean | undefined,
       bell: term['bell'] as string | undefined,
       bracketedPaste: term['bracketedPaste'] as boolean | undefined,
-      background: term['background'] as string | undefined,
+      background: PathMapper.toPortablePath(term['background']) as
+        | string
+        | undefined,
       scrollbackLines: term['scrollbackLines'] as number | undefined,
       rightClick: term['rightClick'] as string | undefined,
       wordSeparator: term['wordSeparator'] as string | undefined,
       copyOnSelect: term['copyOnSelect'] as boolean | undefined,
       pasteOnMiddleClick: term['pasteOnMiddleClick'] as boolean | undefined,
       shellIntegration: term['shellIntegration'] as boolean | undefined,
+      searchOptions: term['searchOptions'] as
+        | Record<string, unknown>
+        | undefined,
       // Additional terminal settings
       autoOpen: term['autoOpen'] as boolean | undefined,
       warnOnMultiLinePaste: term['warnOnMultiLinePaste'] as boolean | undefined,
@@ -194,6 +205,19 @@ export function sanitizeSettings(
         term['colorScheme'];
     }
 
+    if (
+      term['lightColorScheme'] &&
+      typeof term['lightColorScheme'] === 'object'
+    ) {
+      (settings.terminal as Record<string, unknown>)['lightColorScheme'] =
+        term['lightColorScheme'];
+    }
+
+    if (Array.isArray(term['customColorSchemes'])) {
+      (settings.terminal as Record<string, unknown>)['customColorSchemes'] =
+        term['customColorSchemes'];
+    }
+
     // Remove undefined values
     settings.terminal = removeUndefined(settings.terminal);
   }
@@ -207,8 +231,9 @@ export function sanitizeSettings(
       opacity: app['opacity'] as number | undefined,
       vibrancy: app['vibrancy'] as boolean | undefined,
       tabsOnTop: app['tabsOnTop'] as boolean | undefined,
-      dockScreen: app['dockScreen'] as string | undefined,
       dockPosition: app['dockPosition'] as string | undefined,
+      spaciness: app['spaciness'] as number | undefined,
+      colorSchemeMode: app['colorSchemeMode'] as string | undefined,
       // Additional appearance settings
       css: app['css'] as string | undefined,
       font: app['font'] as string | undefined,
@@ -245,6 +270,31 @@ export function sanitizeSettings(
   // Plugin blacklist
   if (Array.isArray(config['pluginBlacklist'])) {
     settings.pluginBlacklist = config['pluginBlacklist'] as string[];
+  }
+
+  // Quick commands/snippets from quick-cmds plugin
+  if (config['quick-cmds'] && typeof config['quick-cmds'] === 'object') {
+    const quickCmds = config['quick-cmds'] as Record<string, unknown>;
+    settings.quickCmds = {};
+
+    // Process commands
+    if (Array.isArray(quickCmds['commands'])) {
+      settings.quickCmds.commands = quickCmds['commands'] as Array<{
+        name: string;
+        text: string;
+        appendCR?: boolean;
+        group?: string;
+        id?: string;
+      }>;
+    }
+
+    // Process groups
+    if (Array.isArray(quickCmds['groups'])) {
+      settings.quickCmds.groups = quickCmds['groups'] as Array<{
+        name: string;
+        id?: string;
+      }>;
+    }
   }
 
   // Application settings
@@ -285,6 +335,7 @@ export function sanitizeSettings(
 export function createSyncPayload(
   config: Record<string, unknown>,
   hostname: string,
+  installedPlugins: string[] = [],
 ): SyncPayload {
   const profiles: SyncableSSHProfile[] = [];
 
@@ -336,6 +387,10 @@ export function createSyncPayload(
     }
   }
 
+  // Extract settings
+  const settings = sanitizeSettings(config);
+  settings.installedPlugins = installedPlugins;
+
   return {
     version: 1,
     lastUpdated: Date.now(),
@@ -347,7 +402,7 @@ export function createSyncPayload(
       collapsed: g.collapsed,
     })),
     vault,
-    settings: sanitizeSettings(config),
+    settings,
   };
 }
 

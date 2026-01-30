@@ -41,9 +41,14 @@ import {
   SyncPayload,
   GDriveSyncConfig,
   SyncResult,
+  QuickCommand,
+  QuickCommandGroup,
+  SyncVersion,
 } from '../interfaces/sync.interface';
 import * as yaml from 'js-yaml';
 import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /** Retry configuration */
 const MAX_RETRIES = 3;
@@ -80,6 +85,9 @@ export class SyncService {
   /** Flag to prevent sync loop when applying remote changes */
   private isApplyingRemote = false;
 
+  /** Missing plugins detected from sync */
+  public missingPlugins$ = new BehaviorSubject<string[]>([]);
+
   constructor(
     private config: ConfigService,
     private crypto: CryptoService,
@@ -108,7 +116,7 @@ export class SyncService {
     if (!this.config.store.gdrivesync) {
       this.config.store.gdrivesync = {};
     }
-    Object.assign(this.config.store.gdrivesync, config);
+    Object.assign(this.config.store.gdrivesync as object, config);
     await this.config.save();
   }
 
@@ -387,13 +395,23 @@ export class SyncService {
 
     try {
       // Get current config as raw object
-      const rawConfig = yaml.load(
-        this.config.readRaw().replace(/^---\n/, ''),
-      ) as Record<string, unknown>;
+      const rawConfigStr = await this.config.readRaw();
+      const rawConfig = yaml.load(rawConfigStr.replace(/^---\n/, '')) as Record<
+        string,
+        unknown
+      >;
 
       // Create sanitized sync payload
       const hostname = await this.getHostname();
-      const payload = createSyncPayload(rawConfig, hostname);
+      const installedPlugins = this.getInstalledPlugins();
+      const quickCmds = this.getQuickCommands();
+
+      // Add quick-cmds to config if exists
+      if (quickCmds) {
+        rawConfig['quick-cmds'] = quickCmds;
+      }
+
+      const payload = createSyncPayload(rawConfig, hostname, installedPlugins);
 
       // Encrypt the payload
       const encrypted = this.crypto.encryptObject(payload, this.masterPassword);
@@ -435,6 +453,106 @@ export class SyncService {
         timestamp: Date.now(),
         error: errorMsg,
       };
+    }
+  }
+
+  /**
+   * Lists available versions from Google Drive
+   */
+  async listRemoteVersions(): Promise<SyncVersion[]> {
+    try {
+      const revisions = await this.drive.listVersions();
+      return revisions
+        .filter((rev) => rev.id && rev.modifiedTime)
+        .map((rev) => ({
+          id: rev.id as string,
+          modifiedTime: rev.modifiedTime as string,
+          size: rev.size,
+          name: `Version ${new Date(rev.modifiedTime as string).toLocaleString()}`,
+        }));
+    } catch (error) {
+      this.log.error('Failed to list remote versions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Restores a specific version from Google Drive
+   */
+  async restoreRemoteVersion(versionId: string): Promise<boolean> {
+    if (!this.masterPassword) {
+      this.log.error('Master password not set');
+      return false;
+    }
+
+    try {
+      this.log.info(`Restoring version ${versionId}...`);
+
+      // 1. Download content
+      const encryptedContent = await this.drive.downloadVersion(versionId);
+      if (!encryptedContent) {
+        throw new Error('Version content not found');
+      }
+
+      // 2. Decrypt
+      if (!this.masterPassword) {
+        throw new Error('Master password not set (please unlock sync first)');
+      }
+
+      let payload: SyncPayload;
+      try {
+        const encryptedData = JSON.parse(encryptedContent) as EncryptedData;
+        const decryptedStr = this.crypto.decrypt(
+          encryptedData,
+          this.masterPassword,
+        );
+
+        if (!decryptedStr) {
+          throw new Error('Decryption failed (wrong password?)');
+        }
+
+        payload = JSON.parse(decryptedStr) as SyncPayload;
+      } catch (e) {
+        throw new Error(
+          'Failed to decrypt version content: ' + (e as Error).message,
+        );
+      }
+
+      // 3. Force apply (Set timestamp to future to win conflict resolution)
+      payload.lastUpdated = Date.now() + 10000;
+
+      // 4. Apply configuration
+      const rawConfigStr = await this.config.readRaw();
+      const rawConfig = yaml.load(rawConfigStr.replace(/^---\n/, '')) as Record<
+        string,
+        unknown
+      >;
+
+      // Check missing plugins
+      if (payload.settings.installedPlugins) {
+        this.checkMissingPlugins(payload.settings.installedPlugins);
+      }
+
+      // Apply quick commands
+      if (payload.settings.quickCmds) {
+        await this.applyQuickCommands(payload.settings.quickCmds);
+      }
+
+      // Merge and write
+      const updatedConfig = applyPayloadToConfig(rawConfig, payload);
+      await this.config.writeRaw(yaml.dump(updatedConfig));
+
+      // Save sync state
+      await this.savePluginConfig({
+        lastSyncTime: Date.now(),
+        lastSyncError: undefined,
+      });
+
+      this.log.info(`Version ${versionId} restored successfully`);
+      return true;
+    } catch (error) {
+      this.log.error('Failed to restore version:', error);
+      return false;
     }
   }
 
@@ -507,10 +625,22 @@ export class SyncService {
         throw new Error('Remote sync file has invalid structure');
       }
 
+      // Check for missing plugins
+      if (remotePayload.settings.installedPlugins) {
+        this.checkMissingPlugins(remotePayload.settings.installedPlugins);
+      }
+
+      // Apply quick commands/snippets if present
+      if (remotePayload.settings.quickCmds) {
+        await this.applyQuickCommands(remotePayload.settings.quickCmds);
+      }
+
       // Get current local config
-      const rawConfig = yaml.load(
-        this.config.readRaw().replace(/^---\n/, ''),
-      ) as Record<string, unknown>;
+      const rawConfigStr = await this.config.readRaw();
+      const rawConfig = yaml.load(rawConfigStr.replace(/^---\n/, '')) as Record<
+        string,
+        unknown
+      >;
       const hostname = await this.getHostname();
       const localPayload = createSyncPayload(rawConfig, hostname);
 
@@ -640,6 +770,150 @@ export class SyncService {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Gets the list of installed plugins from package.json
+   */
+  private getInstalledPlugins(): string[] {
+    try {
+      // Try to get config path from PlatformService
+      // Note: getConfigPath is not in the public type definition but exists at runtime
+      const configPath = (
+        this.platform as unknown as { getConfigPath?: () => string }
+      ).getConfigPath?.();
+
+      if (!configPath) {
+        this.log.debug('Could not get config path from PlatformService');
+        return [];
+      }
+
+      // Plugins are stored in 'plugins/package.json' relative to config directory
+      const pluginsPath = path.join(
+        path.dirname(configPath),
+        'plugins',
+        'package.json',
+      );
+
+      if (fs.existsSync(pluginsPath)) {
+        const content = JSON.parse(fs.readFileSync(pluginsPath, 'utf8'));
+        // Return plugin names from dependencies (they start with 'tabby-')
+        const dependencies = content.dependencies || {};
+        return Object.keys(dependencies).filter((name) =>
+          name.startsWith('tabby-'),
+        );
+      } else {
+        this.log.debug('Plugins package.json not found at:', pluginsPath);
+      }
+    } catch (error) {
+      this.log.warn('Failed to read installed plugins:', error);
+    }
+    return [];
+  }
+
+  /**
+   * Gets quick commands/snippets from quick-cmds plugin config
+   */
+  private getQuickCommands():
+    | { commands?: QuickCommand[]; groups?: QuickCommandGroup[] }
+    | undefined {
+    try {
+      const configPath = (
+        this.platform as unknown as { getConfigPath?: () => string }
+      ).getConfigPath?.();
+
+      if (!configPath) {
+        this.log.debug('Could not get config path for quick-cmds');
+        return undefined;
+      }
+
+      if (fs.existsSync(configPath)) {
+        const content = fs.readFileSync(configPath, 'utf8');
+        const config = yaml.load(content) as Record<string, unknown>;
+
+        if (config['quick-cmds'] && typeof config['quick-cmds'] === 'object') {
+          const quickCmds = config['quick-cmds'] as Record<string, unknown>;
+          return {
+            commands: Array.isArray(quickCmds['commands'])
+              ? quickCmds['commands']
+              : [],
+            groups: Array.isArray(quickCmds['groups'])
+              ? quickCmds['groups']
+              : [],
+          };
+        }
+      } else {
+        this.log.debug('Config file not found at:', configPath);
+      }
+    } catch (error) {
+      this.log.warn('Failed to read quick-cmds config:', error);
+    }
+    return undefined;
+  }
+
+  /**
+   * Applies quick commands/snippets from remote sync
+   */
+  private async applyQuickCommands(remoteQuickCmds: {
+    commands?: QuickCommand[];
+    groups?: QuickCommandGroup[];
+  }): Promise<void> {
+    try {
+      const configPath = (
+        this.platform as unknown as { getConfigPath?: () => string }
+      ).getConfigPath?.();
+
+      if (!configPath) {
+        this.log.warn('Could not get config path to apply quick-cmds');
+        return;
+      }
+
+      let config: Record<string, unknown> = {};
+      if (fs.existsSync(configPath)) {
+        const content = fs.readFileSync(configPath, 'utf8');
+        config = yaml.load(content) as Record<string, unknown>;
+      }
+
+      // Merge quick-cmds config
+      config['quick-cmds'] = {
+        commands: remoteQuickCmds.commands || [],
+        groups: remoteQuickCmds.groups || [],
+      };
+
+      // Write back to config
+      const yamlContent = yaml.dump(config);
+      fs.writeFileSync(configPath, yamlContent, 'utf8');
+
+      this.log.info('Quick commands synced successfully');
+    } catch (error) {
+      this.log.warn('Failed to apply quick-cmds config:', error);
+    }
+  }
+
+  /**
+   * Checks for plugins present in remote but missing locally
+   */
+  private checkMissingPlugins(remotePlugins: string[]): void {
+    const localPlugins = this.getInstalledPlugins();
+    const missingPlugins = remotePlugins.filter(
+      (p) => !localPlugins.includes(p),
+    );
+
+    if (missingPlugins.length > 0) {
+      this.log.info('Found missing plugins:', missingPlugins);
+      this.missingPlugins$.next(missingPlugins);
+
+      // TODO: Use NotificationService to prompt user if available
+      // For now, we log a prominent warning that user might see in DevTools
+      console.warn(
+        '[Tabby Sync] Missing plugins detected from sync: ' +
+          missingPlugins.join(', ') +
+          '. ' +
+          'Please install them manually to match your other machine.',
+      );
+    } else {
+      this.missingPlugins$.next([]);
+    }
   }
 
   /**

@@ -43,7 +43,7 @@ export * from './interfaces/sync.interface';
 class GDriveSyncSettingsTabProvider extends SettingsTabProvider {
   id = 'gdrive-sync';
   title = 'Google Drive Sync';
-  icon = 'fab fa-google-drive';
+  icon = 'fas fa-cloud';
 
   getComponentType(): typeof SettingsComponent {
     return SettingsComponent;

@@ -68,6 +68,25 @@ export interface SyncableVaultSecret {
 }
 
 /**
+ * Quick command item from quick-cmds plugin
+ */
+export interface QuickCommand {
+  name: string;
+  text: string;
+  appendCR?: boolean;
+  group?: string;
+  id?: string;
+}
+
+/**
+ * Quick command group from quick-cmds plugin
+ */
+export interface QuickCommandGroup {
+  name: string;
+  id?: string;
+}
+
+/**
  * Syncable UI/Terminal settings
  */
 export interface SyncableSettings {
@@ -90,6 +109,22 @@ export interface SyncableSettings {
       cursor?: string;
       colors?: string[];
     };
+    lightColorScheme?: {
+      name?: string;
+      foreground?: string;
+      background?: string;
+      cursor?: string;
+      colors?: string[];
+    };
+    customColorSchemes?: Array<{
+      name: string;
+      foreground: string;
+      background: string;
+      cursor?: string;
+      cursorText?: string;
+      colors: string[];
+    }>;
+    searchOptions?: Record<string, unknown>;
     scrollbackLines?: number;
     rightClick?: string;
     wordSeparator?: string;
@@ -106,14 +141,33 @@ export interface SyncableSettings {
     hideTabOptions?: boolean;
   };
 
+  // List of installed plugins (names only)
+  installedPlugins?: string[];
+
+  // Quick commands/snippets from quick-cmds plugin
+  quickCmds?: {
+    commands?: Array<{
+      name: string;
+      text: string;
+      appendCR?: boolean;
+      group?: string;
+      id?: string;
+    }>;
+    groups?: Array<{
+      name: string;
+      id?: string;
+    }>;
+  };
+
   appearance?: {
     theme?: string;
     frame?: string;
     opacity?: number;
     vibrancy?: boolean;
     tabsOnTop?: boolean;
-    dockScreen?: string;
     dockPosition?: string;
+    spaciness?: number;
+    colorSchemeMode?: string;
     // Additional appearance settings
     css?: string;
     font?: string;
@@ -212,6 +266,16 @@ export interface GDriveSyncConfig {
 
   // Remote file info
   driveFileId?: string;
+}
+
+/**
+ * File version info
+ */
+export interface SyncVersion {
+  id: string;
+  modifiedTime: string;
+  size?: string | null;
+  name?: string;
 }
 
 /**

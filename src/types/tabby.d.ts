@@ -8,12 +8,12 @@ declare module 'tabby-core' {
   import { Observable } from 'rxjs';
 
   export abstract class ConfigProvider {
-    defaults: any;
-    platformDefaults: Record<string, any>;
+    defaults: Record<string, unknown>;
+    platformDefaults: Record<string, unknown>;
   }
 
   export interface ConfigProxy {
-    [key: string]: any;
+    [key: string]: unknown;
   }
 
   export class ConfigService {
@@ -22,16 +22,16 @@ declare module 'tabby-core' {
     ready$: Observable<boolean>;
     changed$: Observable<void>;
     save(): Promise<void>;
-    readRaw(): string;
+    readRaw(): Promise<string>;
     writeRaw(data: string): Promise<void>;
     requestRestart(): void;
   }
 
   export class Logger {
-    info(...args: any[]): void;
-    warn(...args: any[]): void;
-    error(...args: any[]): void;
-    debug(...args: any[]): void;
+    info(...args: unknown[]): void;
+    warn(...args: unknown[]): void;
+    error(...args: unknown[]): void;
+    debug(...args: unknown[]): void;
   }
 
   export class LogService {
@@ -50,7 +50,7 @@ declare module 'tabby-core' {
     configChangeBroadcast$: Observable<void>;
   }
 
-  export function configMerge(a: any, b: any): any;
+  export function configMerge(a: unknown, b: unknown): unknown;
 }
 
 // tabby-settings types
@@ -61,6 +61,6 @@ declare module 'tabby-settings' {
     id: string;
     title: string;
     icon: string;
-    abstract getComponentType(): Type<any>;
+    abstract getComponentType(): Type<unknown>;
   }
 }

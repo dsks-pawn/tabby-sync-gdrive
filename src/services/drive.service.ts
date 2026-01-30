@@ -505,6 +505,63 @@ export class DriveService {
   }
 
   /**
+   * Lists available versions of the sync file.
+   */
+  async listVersions(): Promise<drive_v3.Schema$Revision[]> {
+    if (!this.drive) {
+      throw new Error('Drive client not initialized');
+    }
+
+    const fileId = await this.findSyncFile();
+    if (!fileId) {
+      return [];
+    }
+
+    try {
+      const response = await this.drive.revisions.list({
+        fileId,
+        fields: 'revisions(id, modifiedTime, size)',
+        pageSize: 20,
+      });
+      return response.data.revisions || [];
+    } catch (error) {
+      this.log.error('Failed to list versions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Downloads a specific version of the sync file.
+   */
+  async downloadVersion(revisionId: string): Promise<string | null> {
+    if (!this.drive) {
+      throw new Error('Drive client not initialized');
+    }
+
+    const fileId = await this.findSyncFile();
+    if (!fileId) {
+      return null;
+    }
+
+    try {
+      const response = await this.drive.revisions.get(
+        {
+          fileId,
+          revisionId,
+          alt: 'media',
+        },
+        {
+          responseType: 'text',
+        },
+      );
+      return response.data as string;
+    } catch (error) {
+      this.log.error(`Failed to download version ${revisionId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Checks if the service is connected and ready.
    */
   isConnected(): boolean {
