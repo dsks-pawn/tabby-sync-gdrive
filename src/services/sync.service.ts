@@ -469,7 +469,13 @@ export class SyncService {
           modifiedTime: rev.modifiedTime as string,
           size: rev.size,
           name: `Version ${new Date(rev.modifiedTime as string).toLocaleString()}`,
-        }));
+        }))
+        .sort(
+          (a, b) =>
+            new Date(b.modifiedTime).getTime() -
+            new Date(a.modifiedTime).getTime(),
+        )
+        .slice(0, 20);
     } catch (error) {
       this.log.error('Failed to list remote versions:', error);
       return [];

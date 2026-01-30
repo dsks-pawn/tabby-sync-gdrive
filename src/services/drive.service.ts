@@ -521,7 +521,7 @@ export class DriveService {
       const response = await this.drive.revisions.list({
         fileId,
         fields: 'revisions(id, modifiedTime, size)',
-        pageSize: 20,
+        pageSize: 100,
       });
       return response.data.revisions || [];
     } catch (error) {
