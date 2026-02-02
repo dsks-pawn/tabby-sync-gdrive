@@ -107,4 +107,24 @@ Fully supports syncing snippets/commands created with the popular `quick-cmds` p
 
 ---
 
+## 💖 Support the Project
+
+If you find this plugin helpful, consider supporting its development!
+
+### ☕ International Donations
+
+<a href="https://buymeacoffee.com/anhthanh19g" target="_blank">
+  <img src="support-for-me/bmc_qr.png" alt="Buy Me a Coffee QR Code" width="200"/>
+</a>
+
+**Or visit:** [buymeacoffee.com/anhthanh19g](https://buymeacoffee.com/anhthanh19g)
+
+### 🏦 Donate via MBBank (Vietnam)
+
+<img src="support-for-me/mb_qr.jfif" alt="MBBank QR Code" width="200"/>
+
+Your support helps maintain and improve this plugin. Thank you! 🙏
+
+---
+
 _Made with ❤️ for the Tabby community_
