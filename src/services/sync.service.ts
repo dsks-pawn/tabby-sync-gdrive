@@ -156,6 +156,17 @@ export class SyncService {
                 newTokens as GDriveSyncConfig['googleAuthTokens'],
             });
           }
+
+          // Unlock encryption and sync from remote on startup
+          const unlocked = await this.useDefaultPassword();
+          if (unlocked) {
+            this.log.info('Auto-sync: pulling config from remote...');
+            this.fullSync().catch((err) => {
+              this.log.error('Auto-sync on startup failed:', err);
+            });
+          } else {
+            this.log.warn('Auto-sync skipped: failed to unlock master password');
+          }
         }
       } catch (error) {
         this.log.warn('Failed to reconnect with stored tokens:', error);
